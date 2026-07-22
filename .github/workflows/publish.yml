@@ -1,0 +1,66 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/sqlfluff-plugin-legibility/
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          version: "0.11.29"
+          python-version: "3.14"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --extra test
+      - name: Lint
+        run: |
+          uv run --no-sync ruff check .
+          uv run --no-sync ruff format --check .
+      - name: Test
+        run: uv run --no-sync pytest
+      - name: Build release artifacts
+        run: uv build --no-sources
+      - name: Check release artifacts
+        run: |
+          ls -lh dist
+          test -f dist/sqlfluff_plugin_legibility-*.tar.gz
+          test -f dist/sqlfluff_plugin_legibility-*-py3-none-any.whl
+      - name: Publish to PyPI
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/
+      - name: Publish GitHub release assets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          RELEASE_ARGS=()
+          if [[ "$VERSION" =~ -(alpha|beta|rc) ]]; then
+            RELEASE_ARGS+=(--prerelease)
+          fi
+
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            gh release upload "$VERSION" dist/* --clobber
+            exit 0
+          fi
+
+          gh release create "$VERSION" dist/* \
+            --title "$VERSION" \
+            --generate-notes \
+            "${RELEASE_ARGS[@]}"
