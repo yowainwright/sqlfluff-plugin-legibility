@@ -10,8 +10,9 @@ from sqlfluff.core.parser import BaseSegment
 from sqlfluff.core.rules import BaseRule, LintResult, RuleContext
 from sqlfluff.core.rules.crawlers import RootOnlyCrawler
 
-UNMATCHED_MESSAGE = "Remove this comment or match the configured ownership policy."
-STACKED_MESSAGE = "Keep at most one regex-matched comment per top-level statement."
+UNMATCHED_MESSAGE = "Remove this comment or match the configured comment policy."
+ADDITIONAL_MESSAGE = "Keep at most one regex-matched comment per top-level statement."
+STACKED_MESSAGE = "Do not stack comments on consecutive lines."
 
 
 @dataclass(frozen=True)
@@ -176,20 +177,21 @@ def _comment_blocks(comments: tuple[Comment, ...], source: str) -> tuple[tuple[C
     return tuple(blocks)
 
 
-def _owned_starts(
-    comments: tuple[Comment, ...],
-    source: str,
+def _matches_identifier(
+    comment: Comment,
     prefixes: tuple[str, ...],
     suffixes: tuple[str, ...],
-) -> frozenset[int]:
-    owned = set()
+) -> bool:
+    has_prefix = _matches_prefix(comment.body, prefixes)
+    has_suffix = _matches_suffix(comment.body, suffixes)
+    return has_prefix or has_suffix
+
+
+def _stacked_comments(comments: tuple[Comment, ...], source: str) -> tuple[Comment, ...]:
+    stacked = []
     for block in _comment_blocks(comments, source):
-        has_prefix = _matches_prefix(block[0].body, prefixes)
-        has_suffix = _matches_suffix(block[-1].body, suffixes)
-        if not has_prefix and not has_suffix:
-            continue
-        owned.update(comment.start for comment in block)
-    return frozenset(owned)
+        stacked.extend(block[1:])
+    return tuple(stacked)
 
 
 def _is_builtin_directive(comment: Comment) -> bool:
@@ -256,7 +258,7 @@ def _statement_index(
 
 
 class Rule_Legibility_L001(BaseRule):
-    """Comments must match the ownership policy."""
+    """Comments must match the configured policy."""
 
     name = "legibility.no_unmatched_comments"
     groups = ("all", "legibility")
@@ -284,12 +286,11 @@ class Rule_Legibility_L001(BaseRule):
         if context.templated_file:
             source = context.templated_file.source_str
         comments = _comments(context.segment, source)
-        owned = _owned_starts(comments, source, self._prefixes, self._suffixes)
         spans = _statement_spans(context.segment)
         counts: dict[int, int] = {}
         results = []
         for comment in comments:
-            result = self._check_comment(comment, owned, spans, counts, source)
+            result = self._check_comment(comment, spans, counts, source)
             if result:
                 results.append(result)
         return results
@@ -297,14 +298,14 @@ class Rule_Legibility_L001(BaseRule):
     def _check_comment(
         self,
         comment: Comment,
-        owned: frozenset[int],
         spans: tuple[tuple[int, int], ...],
         counts: dict[int, int],
         source: str,
     ) -> LintResult | None:
         matches_directive = _matches(self._directive_patterns, comment.body)
         is_directive = _is_builtin_directive(comment) or matches_directive
-        if is_directive or comment.start in owned:
+        matches_identifier = _matches_identifier(comment, self._prefixes, self._suffixes)
+        if is_directive or matches_identifier:
             return None
         if not _matches(self._comment_patterns, comment.body):
             return LintResult(anchor=comment.segment, description=UNMATCHED_MESSAGE)
@@ -312,4 +313,24 @@ class Rule_Legibility_L001(BaseRule):
         counts[statement] = counts.get(statement, 0) + 1
         if counts[statement] == 1:
             return None
-        return LintResult(anchor=comment.segment, description=STACKED_MESSAGE)
+        return LintResult(anchor=comment.segment, description=ADDITIONAL_MESSAGE)
+
+
+class Rule_Legibility_L002(BaseRule):
+    """Comments must not be stacked on consecutive lines."""
+
+    name = "legibility.no_stacked_comments"
+    groups = ("all", "legibility")
+    crawl_behaviour = RootOnlyCrawler()
+    targets_templated = True
+    is_fix_compatible = False
+
+    def _eval(self, context: RuleContext) -> list[LintResult]:
+        source = context.segment.raw
+        if context.templated_file:
+            source = context.templated_file.source_str
+        comments = _comments(context.segment, source)
+        stacked = _stacked_comments(comments, source)
+        return [
+            LintResult(anchor=comment.segment, description=STACKED_MESSAGE) for comment in stacked
+        ]

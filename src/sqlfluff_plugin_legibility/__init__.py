@@ -10,9 +10,12 @@ from sqlfluff.core.rules import BaseRule, ConfigInfo
 @hookimpl
 def get_rules() -> list[type[BaseRule]]:
     """Return the plugin rules."""
-    from sqlfluff_plugin_legibility.rules import Rule_Legibility_L001
+    from sqlfluff_plugin_legibility.rules import (
+        Rule_Legibility_L001,
+        Rule_Legibility_L002,
+    )
 
-    return [Rule_Legibility_L001]
+    return [Rule_Legibility_L001, Rule_Legibility_L002]
 
 
 @hookimpl
@@ -32,10 +35,10 @@ def get_configs_info() -> dict[str, ConfigInfo]:
             "definition": "Comma-separated regexes that allow individual comments.",
         },
         "comment_prefix_identifiers": {
-            "definition": "Comma-separated identifiers that own a comment block.",
+            "definition": "Comma-separated identifiers allowed at a comment's start.",
         },
         "comment_suffix_identifiers": {
-            "definition": "Comma-separated identifiers that own a comment block.",
+            "definition": "Comma-separated identifiers allowed at a comment's end.",
         },
         "directive_matchers": {
             "definition": "Comma-separated regexes that identify machine directives.",

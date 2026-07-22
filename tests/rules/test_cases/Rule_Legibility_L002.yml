@@ -1,0 +1,43 @@
+rule: Legibility_L002
+
+stacked_comments:
+  fail_str: |
+    -- First explanation.
+    -- Second explanation.
+    SELECT customer_id FROM customers;
+
+comments_separated_by_blank_line:
+  pass_str: |
+    -- First explanation.
+
+    -- Second explanation.
+    SELECT customer_id FROM customers;
+
+stacked_directives:
+  fail_str: |
+    -- sqlfluff:dialect:ansi
+    -- depends_on: {{ ref('upstream_model') }}
+    SELECT customer_id FROM customers;
+
+stacked_marked_comments:
+  fail_str: |
+    -- APPROVED: First explanation.
+    -- APPROVED: Second explanation.
+    SELECT customer_id FROM customers;
+
+stacked_jinja_comments:
+  fail_str: |
+    {# First explanation. #}
+    {# Second explanation. #}
+    SELECT customer_id FROM customers;
+
+adjacent_block_comments:
+  fail_str: |
+    /* First explanation. */ /* Second explanation. */
+    SELECT customer_id FROM customers;
+
+multiline_block_comment:
+  pass_str: |
+    /* First explanation.
+    Second explanation. */
+    SELECT customer_id FROM customers;

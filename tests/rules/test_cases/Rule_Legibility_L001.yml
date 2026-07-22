@@ -93,55 +93,54 @@ trailing_and_next_leading_comments_are_separate:
       legibility.no_unmatched_comments:
         comment_matchers: '\bENG-[0-9]+\b'
 
-prefix_owned_block:
-  pass_str: |
-    -- HUMAN: The provider requires this ordering.
+prefix_identifier_does_not_allow_adjacent_comment:
+  fail_str: |
+    -- APPROVED: The provider requires this ordering.
     -- Reordering these calls breaks failover.
     SELECT retry_id FROM retries;
   configs:
     rules:
       legibility.no_unmatched_comments:
-        comment_prefix_identifiers: HUMAN
+        comment_prefix_identifiers: APPROVED
 
-prefix_does_not_cross_blank_line:
+prefix_identifier_does_not_allow_later_comment:
   fail_str: |
-    -- HUMAN: This comment is owned.
+    -- APPROVED: Preserve this comment.
 
-    -- This separate comment is not owned.
+    -- This separate comment is not approved.
     SELECT retry_id FROM retries;
   configs:
     rules:
       legibility.no_unmatched_comments:
-        comment_prefix_identifiers: HUMAN
+        comment_prefix_identifiers: APPROVED
 
-prefix_owned_multiline_block:
+prefix_identifier_on_multiline_comment:
   pass_str: |
-    /* HUMAN: The provider requires this ordering.
+    /* APPROVED: The provider requires this ordering.
     Reordering these calls breaks failover. */
     SELECT retry_id FROM retries;
   configs:
     rules:
       legibility.no_unmatched_comments:
-        comment_prefix_identifiers: HUMAN
+        comment_prefix_identifiers: APPROVED
 
-suffix_owned_block:
+suffix_identifier:
   pass_str: |
-    -- The provider requires this ordering.
-    -- Reordering these calls breaks failover. @owned
+    -- Preserve the provider ordering. @approved
     SELECT retry_id FROM retries;
   configs:
     rules:
       legibility.no_unmatched_comments:
-        comment_suffix_identifiers: '@owned'
+        comment_suffix_identifiers: '@approved'
 
 prefix_requires_boundary:
   fail_str: |
-    -- HUMANIZED: This block is not owned.
+    -- APPROVEDLY: This comment is not approved.
     SELECT retry_id FROM retries;
   configs:
     rules:
       legibility.no_unmatched_comments:
-        comment_prefix_identifiers: HUMAN
+        comment_prefix_identifiers: APPROVED
 
 sqlfluff_noqa_directive:
   pass_str: |
