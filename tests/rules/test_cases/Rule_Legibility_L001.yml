@@ -1,0 +1,208 @@
+rule: Legibility_L001
+
+code_without_comments:
+  pass_str: |
+    SELECT customer_id
+    FROM customers;
+
+ordinary_line_comment:
+  fail_str: |
+    -- Explain this query.
+    SELECT customer_id FROM customers;
+
+ordinary_inline_comment:
+  fail_str: |
+    SELECT customer_id -- Keep this value stable.
+    FROM customers;
+
+ordinary_block_comment:
+  fail_str: |
+    /* Explain this query. */
+    SELECT customer_id FROM customers;
+
+ordinary_multiline_block_comment:
+  fail_str: |
+    /* Explain this query.
+    Keep this query stable. */
+    SELECT customer_id FROM customers;
+
+comment_text_inside_strings:
+  pass_str: |
+    SELECT '-- not a comment', '/* also not a comment */';
+
+regex_matched_comment:
+  pass_str: |
+    -- ENG-481: Keep provider retries ordered.
+    SELECT retry_id FROM retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
+second_regex_matched_comment:
+  fail_str: |
+    -- ENG-481: Keep provider retries ordered.
+    -- ENG-482: Keep provider retries stable.
+    SELECT retry_id FROM retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
+second_nonadjacent_matched_comment:
+  fail_str: |
+    -- ENG-481: Keep provider retries ordered.
+    SELECT retry_id
+    FROM retries
+    -- ENG-482: Keep provider retries stable.
+    WHERE active;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
+one_matched_comment_per_statement:
+  pass_str: |
+    -- ENG-481: Keep provider retries ordered.
+    SELECT retry_id FROM retries;
+
+    -- ENG-482: Keep worker retries ordered.
+    SELECT retry_id FROM worker_retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
+trailing_comment_counts_for_previous_statement:
+  fail_str: |
+    -- ENG-481: Keep provider retries ordered.
+    SELECT retry_id FROM retries; -- ENG-482: Keep provider retries stable.
+    SELECT retry_id FROM worker_retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
+trailing_and_next_leading_comments_are_separate:
+  pass_str: |
+    SELECT retry_id FROM retries; -- ENG-481: Keep provider retries ordered.
+    -- ENG-482: Keep worker retries ordered.
+    SELECT retry_id FROM worker_retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
+prefix_owned_block:
+  pass_str: |
+    -- HUMAN: The provider requires this ordering.
+    -- Reordering these calls breaks failover.
+    SELECT retry_id FROM retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_prefix_identifiers: HUMAN
+
+prefix_does_not_cross_blank_line:
+  fail_str: |
+    -- HUMAN: This comment is owned.
+
+    -- This separate comment is not owned.
+    SELECT retry_id FROM retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_prefix_identifiers: HUMAN
+
+prefix_owned_multiline_block:
+  pass_str: |
+    /* HUMAN: The provider requires this ordering.
+    Reordering these calls breaks failover. */
+    SELECT retry_id FROM retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_prefix_identifiers: HUMAN
+
+suffix_owned_block:
+  pass_str: |
+    -- The provider requires this ordering.
+    -- Reordering these calls breaks failover. @owned
+    SELECT retry_id FROM retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_suffix_identifiers: '@owned'
+
+prefix_requires_boundary:
+  fail_str: |
+    -- HUMANIZED: This block is not owned.
+    SELECT retry_id FROM retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_prefix_identifiers: HUMAN
+
+sqlfluff_noqa_directive:
+  pass_str: |
+    SELECT customer_id FROM customers; -- noqa: LT05
+
+sqlfluff_config_directive:
+  pass_str: |
+    -- sqlfluff:dialect:ansi
+    SELECT customer_id FROM customers;
+
+dbt_dependency_directive:
+  pass_str: |
+    -- depends_on: {{ ref('upstream_model') }}
+    SELECT customer_id FROM customers;
+  configs:
+    core:
+      templater: jinja
+
+optimizer_hint:
+  pass_str: |
+    SELECT /*+ INDEX(customers customers_pk) */ customer_id
+    FROM customers;
+
+custom_directive:
+  pass_str: |
+    -- generated: do not edit
+    SELECT customer_id FROM customers;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        directive_matchers: '^generated:'
+
+jinja_comment:
+  fail_str: |
+    {# Explain this query. #}
+    SELECT customer_id FROM customers;
+  configs:
+    core:
+      templater: jinja
+
+postgres_comment:
+  fail_str: |
+    -- Explain this PostgreSQL query.
+    SELECT payload->>'status' FROM events;
+  configs:
+    core:
+      dialect: postgres
+
+mysql_comment:
+  fail_str: |
+    # Explain this MySQL query.
+    SELECT `status` FROM events;
+  configs:
+    core:
+      dialect: mysql
+
+invalid_matcher_does_not_crash:
+  fail_str: |
+    -- Any comment.
+    SELECT customer_id FROM customers;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '['

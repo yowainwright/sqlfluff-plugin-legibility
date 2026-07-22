@@ -1,0 +1,52 @@
+name: Bug report
+description: Report an incorrect diagnostic, crash, or integration problem.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      placeholder: "sqlfluff-plugin-legibility 0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: sqlfluff-version
+    attributes:
+      label: SQLFluff version
+      placeholder: "sqlfluff 4.2.2"
+    validations:
+      required: true
+  - type: input
+    id: dialect
+    attributes:
+      label: SQL dialect
+      placeholder: "postgres"
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration
+      render: ini
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
