@@ -134,7 +134,9 @@ record:
 ```
 
 Only one regex-matched physical comment is allowed per top-level statement. The
-limit resets for each new statement. Remove redundant back-to-back comments:
+limit resets for each new statement. A comment after a semicolon belongs to the
+statement on that line; a comment on the next line belongs to the next statement.
+Remove redundant back-to-back comments:
 
 ```diff
  -- ENG-481: Provider retries must remain ordered.

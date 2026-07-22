@@ -73,6 +73,26 @@ one_matched_comment_per_statement:
       legibility.no_unmatched_comments:
         comment_matchers: '\bENG-[0-9]+\b'
 
+trailing_comment_counts_for_previous_statement:
+  fail_str: |
+    -- ENG-481: Keep provider retries ordered.
+    SELECT retry_id FROM retries; -- ENG-482: Keep provider retries stable.
+    SELECT retry_id FROM worker_retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
+trailing_and_next_leading_comments_are_separate:
+  pass_str: |
+    SELECT retry_id FROM retries; -- ENG-481: Keep provider retries ordered.
+    -- ENG-482: Keep worker retries ordered.
+    SELECT retry_id FROM worker_retries;
+  configs:
+    rules:
+      legibility.no_unmatched_comments:
+        comment_matchers: '\bENG-[0-9]+\b'
+
 prefix_owned_block:
   pass_str: |
     -- HUMAN: The provider requires this ordering.

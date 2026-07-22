@@ -223,12 +223,35 @@ def _statement_spans(root: BaseSegment) -> tuple[tuple[int, int], ...]:
     return tuple(spans)
 
 
-def _statement_index(comment: Comment, spans: tuple[tuple[int, int], ...]) -> int:
+def _follows_previous_statement(
+    comment: Comment,
+    index: int,
+    spans: tuple[tuple[int, int], ...],
+    source: str,
+) -> bool:
+    if index == 0:
+        return False
+    previous_end = spans[index - 1][1]
+    separator = source[previous_end : comment.start]
+    return "\n" not in separator
+
+
+def _statement_index(
+    comment: Comment,
+    spans: tuple[tuple[int, int], ...],
+    source: str,
+) -> int:
     for index, (start, end) in enumerate(spans):
         is_inside = start <= comment.start < end
-        is_before = comment.start < start
-        if is_inside or is_before:
+        if is_inside:
             return index
+        is_before = comment.start < start
+        if not is_before:
+            continue
+        follows_previous = _follows_previous_statement(comment, index, spans, source)
+        if follows_previous:
+            return index - 1
+        return index
     return max(len(spans) - 1, 0)
 
 
@@ -266,7 +289,7 @@ class Rule_Legibility_L001(BaseRule):
         counts: dict[int, int] = {}
         results = []
         for comment in comments:
-            result = self._check_comment(comment, owned, spans, counts)
+            result = self._check_comment(comment, owned, spans, counts, source)
             if result:
                 results.append(result)
         return results
@@ -277,6 +300,7 @@ class Rule_Legibility_L001(BaseRule):
         owned: frozenset[int],
         spans: tuple[tuple[int, int], ...],
         counts: dict[int, int],
+        source: str,
     ) -> LintResult | None:
         matches_directive = _matches(self._directive_patterns, comment.body)
         is_directive = _is_builtin_directive(comment) or matches_directive
@@ -284,7 +308,7 @@ class Rule_Legibility_L001(BaseRule):
             return None
         if not _matches(self._comment_patterns, comment.body):
             return LintResult(anchor=comment.segment, description=UNMATCHED_MESSAGE)
-        statement = _statement_index(comment, spans)
+        statement = _statement_index(comment, spans, source)
         counts[statement] = counts.get(statement, 0) + 1
         if counts[statement] == 1:
             return None
