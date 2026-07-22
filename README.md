@@ -7,15 +7,16 @@
 
 A small SQLFluff plugin for keeping comments scarce and intentional.
 
-Ordinary SQL and Jinja comments are reported. Projects may explicitly allow one
-traceable comment per top-level statement or a human-owned block. Machine directives
-remain allowed.
+Ordinary SQL and Jinja comments are reported. Projects may explicitly allow
+traceable or marked comments. Machine directives remain allowed. Consecutive
+physical comments are always reported.
 
-It adds one non-fixing rule:
+It adds two non-fixing rules.
 
 | Rule | Name | Behavior |
 | --- | --- | --- |
-| `Legibility_L001` | `legibility.no_unmatched_comments` | Reports human-authored comments unless explicitly allowed. |
+| `Legibility_L001` | `legibility.no_unmatched_comments` | Reports comments unless explicitly allowed. |
+| `Legibility_L002` | `legibility.no_stacked_comments` | Reports consecutive physical comments. |
 
 SQLFluff's built-in [`LT05`](https://docs.sqlfluff.com/en/stable/reference/rules.html#rule-LT05)
 handles line length. This plugin does not duplicate it.
@@ -34,7 +35,7 @@ Projects not using uv can install the same package with pip:
 pip install sqlfluff-plugin-legibility
 ```
 
-SQLFluff discovers the installed plugin automatically. Add the warning codes to an
+SQLFluff discovers the installed plugin automatically. Configure the rules in an
 existing `.sqlfluff` file. Choose the dialect that matches your project; the plugin
 does not set one.
 
@@ -45,6 +46,8 @@ does not set one.
 +max_line_length = 80
 ```
 
+`Legibility_L002` is omitted from `warnings`, so stacked comments are errors.
+
 Run SQLFluff:
 
 ```console
@@ -52,12 +55,12 @@ uv run sqlfluff lint path/to/query.sql
 ```
 
 Codes listed in `warnings` are reported but do not themselves make lint fail. Remove
-a code from `warnings` to enforce it as a failure. To run only these two rules, also
-add:
+a code from `warnings` to enforce it as a failure. To limit linting to these rules,
+add the following.
 
 ```diff
  [sqlfluff]
-+rules = Legibility_L001, LT05
++rules = Legibility_L001, Legibility_L002, LT05
 ```
 
 ## Behavior
@@ -67,7 +70,8 @@ add:
 | Ordinary SQL or Jinja comment | Reported |
 | Traceable comment | Reported until `comment_matchers` allows it |
 | Additional matched comment in the same statement | Reported |
-| Human-owned block | Reported until a prefix or suffix identifier allows it |
+| Marked comment | Reported until a prefix or suffix identifier allows it |
+| Consecutive physical comments | Reported by `Legibility_L002` |
 | Built-in machine directive | Allowed |
 | Other machine directive | Reported until `directive_matchers` allows it |
 
@@ -90,7 +94,7 @@ column is easy to scan.
 
 ## Remove ordinary comments
 
-No ownership configuration is required. By default, each ordinary SQL or Jinja
+No comment configuration is required. By default, each ordinary SQL or Jinja
 comment reports `Legibility_L001`.
 
 ```diff
@@ -136,7 +140,11 @@ record:
 Only one regex-matched physical comment is allowed per top-level statement. The
 limit resets for each new statement. A comment after a semicolon belongs to the
 statement on that line; a comment on the next line belongs to the next statement.
-Remove redundant back-to-back comments:
+
+## Reject stacked comments
+
+`Legibility_L002` reports every physical comment after the first in a consecutive
+stack. Matchers, identifiers, and machine directives do not bypass this rule.
 
 ```diff
  -- ENG-481: Provider retries must remain ordered.
@@ -145,40 +153,38 @@ Remove redundant back-to-back comments:
  FROM retries;
 ```
 
-## Allow a human-owned block
+A blank line between comments ends the stack. One multiline block comment is one
+physical comment.
 
-Prefix and suffix identifiers allow a contiguous block and exempt it from the
-one-comment limit.
+## Allow a marked comment
 
-Start without ownership exceptions. Add identifiers only when a project already has
-a human ownership policy:
+Prefix and suffix identifiers allow individual comments. Start without identifiers
+and add only those required by a repository policy.
 
 ```diff
  [sqlfluff:rules:legibility.no_unmatched_comments]
-+comment_prefix_identifiers = HUMAN, LEGAL, SECURITY
-+comment_suffix_identifiers = @owned
++comment_prefix_identifiers = APPROVED
++comment_suffix_identifiers = @approved
 ```
 
-The prefix must begin the first comment:
+The prefix must begin the comment.
 
 ```diff
 --- The provider requires this ordering.
-+-- HUMAN: The provider requires this ordering.
- -- Reordering these calls breaks failover.
++-- APPROVED: The provider requires this ordering.
  SELECT retry_id FROM retries;
 ```
 
-The suffix must end the final comment:
+The suffix must end the comment.
 
 ```diff
- -- The provider requires this ordering.
---- Reordering these calls breaks failover.
-+-- Reordering these calls breaks failover. @owned
+--- The provider requires this ordering.
++-- The provider requires this ordering. @approved
  SELECT retry_id FROM retries;
 ```
 
-Identifiers are case-insensitive and require a word boundary. `HUMANIZED` does not
-match `HUMAN`.
+Identifiers are case-insensitive and require a word boundary. `APPROVEDLY` does not
+match `APPROVED`.
 
 ## Machine directives are exempt
 
@@ -186,7 +192,15 @@ The rule recognizes common directives without configuration:
 
 ```sql
 -- sqlfluff:dialect:postgres
+SELECT customer_id FROM customers;
+```
+
+```sql
 -- depends_on: {{ ref('upstream_model') }}
+SELECT customer_id FROM customers;
+```
+
+```sql
 SELECT /*+ INDEX(customers customers_pk) */ customer_id
 FROM customers; -- noqa: LT05
 ```
@@ -208,14 +222,27 @@ SELECT customer_id FROM customers;
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `comment_matchers` | Empty | Comma-separated, case-insensitive regular expressions; allows one matched comment per top-level statement |
-| `comment_prefix_identifiers` | Empty | Comma-separated identifiers that begin a human-owned comment block |
-| `comment_suffix_identifiers` | Empty | Comma-separated identifiers that end a human-owned comment block |
+| `comment_prefix_identifiers` | Empty | Comma-separated identifiers allowed at the start of a comment |
+| `comment_suffix_identifiers` | Empty | Comma-separated identifiers allowed at the end of a comment |
 | `directive_matchers` | Empty | Comma-separated, case-insensitive regular expressions for additional machine directives |
+
+## Severity
+
+SQLFluff treats enabled rules as errors unless their codes appear in `warnings`.
+Agent sessions and CI must leave `Legibility_L002` out of `warnings`. Developers
+may add it to `warnings` for non-blocking local feedback.
+
+```diff
+ [sqlfluff]
+-warnings = Legibility_L001, LT05
++warnings = Legibility_L001, Legibility_L002, LT05
+```
 
 ## Agent policy
 
 Agents should not add or update comments. They may remove or move comments. They
-must not add an ownership marker or directive to bypass `Legibility_L001`.
+must treat `Legibility_L002` as an error and must not add a marker or directive to
+bypass `Legibility_L001`.
 
 ## License
 
